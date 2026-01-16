@@ -1,325 +1,393 @@
 --[[
-    TRNGHAI V26 - ULTIMATE STRUCTURE
-    - Optimized ESP System (Zero FPS Drop)
-    - Advanced Hooking (Stamina & Ghost)
-    - Full 14 Features with Detailed Logic
+    TRNGHAI V28 - CYBER DRAGON EDITION
+    [+] UI: Modern Dark Theme, Gradients, Shadows, Animations.
+    [+] System: Notification Library included.
+    [+] Core: Optimized V27 Logic.
 ]]
 
--- [KHỞI TẠO HỆ THỐNG]
 local g = getgenv and getgenv() or _G
-if g.TrNgHai_V26_Loaded then return end
-g.TrNgHai_V26_Loaded = true
+if g.TrNgHai_V28_Loaded then 
+    game:GetService("StarterGui"):SetCore("SendNotification", {Title = "TrNgHai V28", Text = "Script đã chạy rồi!", Duration = 3})
+    return 
+end
+g.TrNgHai_V28_Loaded = true
 
--- [KHAI BÁO BIẾN DỊCH VỤ]
+-- [SERVICES]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
-local VirtualUser = game:GetService("VirtualUser")
-local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 
 local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
 local mouse = player:GetMouse()
 
--- [BẢNG QUẢN LÝ TRẠNG THÁI]
-local Toggles = {
-    Speed = false, Jump = false, Ghost = false, Instant = false,
-    Stamina = false, Noclip = false, Fly = false, ESP_Entity = false,
-    ESP_Item = false, FullBright = false, AntiAfk = true, Invisible = false
+-- [CONFIG & STATE]
+local Config = {
+    Speed = 16, Jump = 50, FlySpeed = 50,
+    States = {
+        Speed = false, Jump = false, Ghost = false, Instant = false,
+        Stamina = false, Noclip = false, Fly = false, Esp = false,
+        EspItem = false, Bright = false, AntiAfk = true
+    }
 }
-local Values = { Speed = 16, Jump = 50, FlySpeed = 2 }
-local ItemKeywords = {"key", "coin", "gold", "tool", "item", "loot", "battery", "card", "medkit", "gear"}
+local SavedCFrame = nil
 
--- [HỆ THỐNG GIAO DIỆN CHUYÊN NGHIỆP]
-local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "TrNgHai_HighEnd_V26"
+-- [CLEANUP OLD UI]
+for _, v in pairs(CoreGui:GetChildren()) do
+    if v.Name:find("TrNgHai") then v:Destroy() end
+end
 
-local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 260, 0, 460)
-Main.Position = UDim2.new(0.4, 0, 0.2, 0)
-Main.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.Draggable = true -- MENU DI CHUYỂN ĐƯỢC
+-- [UI LIBRARY - HỆ THỐNG GIAO DIỆN]
+local Library = {}
+local UI = Instance.new("ScreenGui", CoreGui)
+UI.Name = "TrNgHai_CyberDragon"
+UI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local MainCorner = Instance.new("UICorner", Main)
-local MainStroke = Instance.new("UIStroke", Main)
-MainStroke.Color = Color3.fromRGB(255, 0, 0)
-MainStroke.Thickness = 2
-MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.BackgroundTransparency = 1
-Title.Text = "TRNGHAI V26 REBORN"
-Title.TextColor3 = Color3.fromRGB(255, 20, 20)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-
-local Container = Instance.new("ScrollingFrame", Main)
-Container.Size = UDim2.new(1, -10, 1, -60)
-Container.Position = UDim2.new(0, 5, 0, 55)
-Container.BackgroundTransparency = 1
-Container.CanvasSize = UDim2.new(0, 0, 0, 850) -- Đảm bảo đủ chỗ cho 14 tính năng
-Container.ScrollBarThickness = 2
-Container.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
-
-local UIList = Instance.new("UIListLayout", Container)
-UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIList.Padding = UDim.new(0, 8)
-
--- [HÀM TẠO UI CHI TIẾT]
-local function NewButton(name, default_state, callback)
-    local btn = Instance.new("TextButton", Container)
-    btn.Size = UDim2.new(0, 230, 0, 38)
-    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
-    btn.Text = name .. (default_state and ": ON" or ": OFF")
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 13
-    Instance.new("UICorner", btn)
+-- >> Hàm tạo thông báo (Notification)
+function Library:Notify(text, type)
+    local notif = Instance.new("Frame", UI)
+    notif.Size = UDim2.new(0, 250, 0, 40)
+    notif.Position = UDim2.new(1, 20, 0.85, 0) -- Bắt đầu từ ngoài màn hình phải
+    notif.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    notif.BorderSizePixel = 0
+    Instance.new("UICorner", notif).CornerRadius = UDim.new(0, 8)
     
+    local stroke = Instance.new("UIStroke", notif)
+    stroke.Color = type == "Success" and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(255, 50, 50)
+    stroke.Thickness = 1.5
+    
+    local label = Instance.new("TextLabel", notif)
+    label.Size = UDim2.new(1, -20, 1, 0); label.Position = UDim2.new(0, 15, 0, 0)
+    label.BackgroundTransparency = 1; label.Text = text; label.TextColor3 = Color3.new(1,1,1)
+    label.Font = Enum.Font.GothamBold; label.TextSize = 14; label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    -- Animation In
+    notif:TweenPosition(UDim2.new(1, -270, 0.85, 0), "Out", "Quad", 0.5)
+    
+    task.delay(3, function()
+        notif:TweenPosition(UDim2.new(1, 20, 0.85, 0), "In", "Quad", 0.5, true, function() notif:Destroy() end)
+    end)
+end
+
+-- >> Main Frame
+local Main = Instance.new("Frame", UI)
+Main.Size = UDim2.new(0, 320, 0, 500)
+Main.Position = UDim2.new(0.5, -160, 0.5, -250)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+
+-- >> Dragging Logic
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = Main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+Main.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then if dragging then update(input) end end end)
+
+-- >> Decor: Gradient Stroke
+local MainStroke = Instance.new("UIStroke", Main)
+MainStroke.Thickness = 2
+local Gradient = Instance.new("UIGradient", MainStroke)
+Gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 0, 0)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+}
+Gradient.Rotation = 45
+task.spawn(function()
+    while task.wait() do Gradient.Rotation = Gradient.Rotation + 1 end -- Xoay viền màu
+end)
+
+-- >> Header
+local Header = Instance.new("Frame", Main)
+Header.Size = UDim2.new(1, 0, 0, 50); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 25); Header.BorderSizePixel = 0
+local Title = Instance.new("TextLabel", Header)
+Title.Text = "TRNGHAI V28 🐉"; Title.Size = UDim2.new(1, 0, 1, 0); Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 50, 50); Title.Font = Enum.Font.GothamBlack; Title.TextSize = 22
+
+-- >> Scroll Container
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1, -10, 1, -60); Scroll.Position = UDim2.new(0, 5, 0, 55); Scroll.BackgroundTransparency = 1
+Scroll.ScrollBarThickness = 2; Scroll.ScrollBarImageColor3 = Color3.fromRGB(200, 50, 50)
+Scroll.CanvasSize = UDim2.new(0, 0, 2.5, 0)
+local UIList = Instance.new("UIListLayout", Scroll); UIList.Padding = UDim.new(0, 10); UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- >> Component Functions
+function Library:CreateButton(text, callback)
+    local btn = Instance.new("TextButton", Scroll)
+    btn.Size = UDim2.new(0, 280, 0, 42)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    
+    local lbl = Instance.new("TextLabel", btn)
+    lbl.Size = UDim2.new(1, -40, 1, 0); lbl.Position = UDim2.new(0, 15, 0, 0)
+    lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+    lbl.Font = Enum.Font.GothamSemibold; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local status = Instance.new("Frame", btn)
+    status.Size = UDim2.new(0, 10, 0, 10); status.Position = UDim2.new(1, -25, 0.5, -5)
+    status.BackgroundColor3 = Color3.fromRGB(50, 50, 50); Instance.new("UICorner", status).CornerRadius = UDim.new(1, 0)
+    
+    local toggled = false
     btn.MouseButton1Click:Connect(function()
-        callback(btn)
+        toggled = not toggled
+        -- Animation Effect
+        TweenService:Create(status, TweenInfo.new(0.2), {BackgroundColor3 = toggled and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(50, 50, 50)}):Play()
+        TweenService:Create(lbl, TweenInfo.new(0.2), {TextColor3 = toggled and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)}):Play()
+        callback(toggled, lbl)
     end)
     return btn
 end
 
-local function NewInput(placeholder, callback)
-    local box = Instance.new("TextBox", Container)
-    box.Size = UDim2.new(0, 230, 0, 38)
-    box.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    box.PlaceholderText = placeholder
-    box.Text = ""
-    box.TextColor3 = Color3.new(1, 1, 1)
-    box.Font = Enum.Font.Gotham
-    box.TextSize = 13
-    Instance.new("UICorner", box)
-    box.FocusLost:Connect(function()
-        callback(box.Text)
-    end)
+function Library:CreateAction(text, color, callback) -- Nút bấm thực hiện ngay (không toggle)
+    local btn = Instance.new("TextButton", Scroll)
+    btn.Size = UDim2.new(0, 280, 0, 42)
+    btn.BackgroundColor3 = color
+    btn.Text = text; btn.TextColor3 = Color3.new(1,1,1); btn.Font = Enum.Font.GothamBold; btn.TextSize = 14
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.MouseButton1Click:Connect(callback)
 end
 
--- [1. SPEED & JUMP CONTROL]
-NewInput("NHẬP TỐC ĐỘ (SPEED)", function(val) Values.Speed = tonumber(val) or 16 end)
-NewButton("1. SPEED MASTER", false, function(b)
-    Toggles.Speed = not Toggles.Speed
-    b.Text = "1. SPEED MASTER: " .. (Toggles.Speed and "ON" or "OFF")
-    b.BackgroundColor3 = Toggles.Speed and Color3.fromRGB(80, 0, 0) or Color3.fromRGB(25, 25, 28)
-end)
+function Library:CreateInput(placeholder, callback)
+    local frame = Instance.new("Frame", Scroll)
+    frame.Size = UDim2.new(0, 280, 0, 40); frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    
+    local box = Instance.new("TextBox", frame)
+    box.Size = UDim2.new(1, -20, 1, 0); box.Position = UDim2.new(0, 10, 0, 0)
+    box.BackgroundTransparency = 1; box.Text = ""; box.PlaceholderText = placeholder
+    box.TextColor3 = Color3.new(1,1,1); box.Font = Enum.Font.Gotham; box.TextSize = 14
+    
+    box.FocusLost:Connect(function() callback(box.Text) end)
+end
 
-NewInput("NHẬP ĐỘ CAO (JUMP)", function(val) Values.Jump = tonumber(val) or 50 end)
-NewButton("2. JUMP POWER", false, function(b)
-    Toggles.Jump = not Toggles.Jump
-    b.Text = "2. JUMP POWER: " .. (Toggles.Jump and "ON" or "OFF")
-end)
+-- ================= [FEATURE IMPLEMENTATION] =================
 
--- [3. GHOST NPC - CƠ CHẾ NÂNG CAO]
-NewButton("3. 👻 GHOST NPC", false, function(b)
-    Toggles.Ghost = not Toggles.Ghost
-    b.Text = "3. GHOST NPC: " .. (Toggles.Ghost and "ON" or "OFF")
-    if Toggles.Ghost then
-        -- Vô hiệu hóa va chạm với NPC nếu có thể
-        pcall(function() player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0) end)
+-- 1. SPEED
+Library:CreateInput("Nhập Tốc Độ (Mặc định 16)...", function(v) Config.Speed = tonumber(v) or 16 end)
+Library:CreateButton("1. Speed Master", function(state)
+    Config.States.Speed = state
+    Library:Notify(state and "Đã bật Speed!" or "Đã tắt Speed!", state and "Success" or "Fail")
+end)
+RunService.RenderStepped:Connect(function()
+    if Config.States.Speed and player.Character then
+        local h = player.Character:FindFirstChild("Humanoid")
+        if h then h.WalkSpeed = Config.Speed end
     end
 end)
 
--- [4. INSTANT INTERACT]
-NewButton("4. ⚡ INSTANT INTERACT", false, function(b)
-    Toggles.Instant = not Toggles.Instant
-    b.Text = "4. INSTANT INTERACT: " .. (Toggles.Instant and "ON" or "OFF")
+-- 2. JUMP
+Library:CreateInput("Nhập Nhảy Cao (Mặc định 50)...", function(v) Config.Jump = tonumber(v) or 50 end)
+Library:CreateButton("2. Jump Power", function(state)
+    Config.States.Jump = state
+    Library:Notify(state and "Đã bật Jump!" or "Đã tắt Jump!", state and "Success" or "Fail")
 end)
-
--- [5. INF STAMINA - HOOK CHUYÊN SÂU]
-NewButton("5. 🏃 VÔ HẠN THỂ LỰC", false, function(b)
-    Toggles.Stamina = not Toggles.Stamina
-    b.Text = "5. VÔ HẠN THỂ LỰC: " .. (Toggles.Stamina and "ON" or "OFF")
-end)
-
--- [6. NOCLIP]
-NewButton("6. 🧱 XUYÊN TƯỜNG", false, function(b)
-    Toggles.Noclip = not Toggles.Noclip
-    b.Text = "6. XUYÊN TƯỜNG: " .. (Toggles.Noclip and "ON" or "OFF")
-end)
-
--- [7. FLY MODE]
-NewButton("7. 🕊️ FLY MODE", false, function(b)
-    Toggles.Fly = not Toggles.Fly
-    b.Text = "7. FLY MODE: " .. (Toggles.Fly and "ON" or "OFF")
-end)
-
--- [8 & 9. ESP SYSTEM - OPTIMIZED]
-NewButton("8. 👁️ HIỆN THỰC THỂ", false, function(b)
-    Toggles.ESP_Entity = not Toggles.ESP_Entity
-    b.Text = "8. HIỆN THỰC THỂ: " .. (Toggles.ESP_Entity and "ON" or "OFF")
-    if not Toggles.ESP_Entity then
-        for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "TrNgHai_ESP" then v:Destroy() end end
+RunService.RenderStepped:Connect(function()
+    if Config.States.Jump and player.Character then
+        local h = player.Character:FindFirstChild("Humanoid")
+        if h then h.JumpPower = Config.Jump end
     end
 end)
 
-NewButton("9. 🔍 HIỆN ITEM (LỌC)", false, function(b)
-    Toggles.ESP_Item = not Toggles.ESP_Item
-    b.Text = "9. HIỆN ITEM: " .. (Toggles.ESP_Item and "ON" or "OFF")
-    if not Toggles.ESP_Item then
-        for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "TrNgHai_Item" then v:Destroy() end end
+-- 3. GHOST NPC
+Library:CreateButton("3. Ghost NPC (Đứng yên)", function(state)
+    Config.States.Ghost = state
+end)
+RunService.Stepped:Connect(function()
+    if Config.States.Ghost and player.Character then
+        local r = player.Character:FindFirstChild("HumanoidRootPart")
+        if r then r.Velocity = Vector3.zero end
     end
 end)
 
--- [10. FULL BRIGHT - NO GLARE]
-NewButton("10. 🔆 FULL BRIGHT", false, function(b)
-    Toggles.FullBright = not Toggles.FullBright
-    b.Text = "10. FULL BRIGHT: " .. (Toggles.FullBright and "ON" or "OFF")
-    if not Toggles.FullBright then
-        Lighting.Brightness = 1
-        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+-- 4. INSTANT INTERACT
+Library:CreateButton("4. Instant Interact", function(state)
+    Config.States.Instant = state
+    if state then
+        for _,v in pairs(Workspace:GetDescendants()) do if v:IsA("ProximityPrompt") then v.HoldDuration = 0 end end
+        Library:Notify("Đã bỏ thời gian chờ!", "Success")
     end
 end)
-
--- [11. FIX LAG - SMART CLEAN]
-NewButton("11. 🚀 FIX LAG (TỐI ƯU FPS)", false, function(b)
-    pcall(function()
-        for _, v in pairs(Workspace:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.Material = Enum.Material.SmoothPlastic
-                v.CastShadow = false
-            elseif v:IsA("PostProcessEffect") or v:IsA("Explosion") then
-                v.Enabled = false
-            end
-        end
-    end)
-    b.Text = "11. ĐÃ TỐI ƯU FPS"
+Workspace.DescendantAdded:Connect(function(v)
+    if Config.States.Instant and v:IsA("ProximityPrompt") then v.HoldDuration = 0 end
 end)
 
--- [12. ANTI-AFK]
-NewButton("12. 🚫 ANTI-AFK", true, function(b)
-    Toggles.AntiAfk = not Toggles.AntiAfk
-    b.Text = "12. ANTI-AFK: " .. (Toggles.AntiAfk and "ON" or "OFF")
+-- 5. STAMINA (HOOK)
+Library:CreateButton("5. Vô hạn Thể Lực", function(state)
+    Config.States.Stamina = state
 end)
-
--- [13. TELEPORT SYSTEM]
-NewButton("13. 💾 LƯU VỊ TRÍ HIỆN TẠI", false, function(b)
-    posCount = posCount + 1
-    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local savedPos = hrp.CFrame
-        local tpBtn = NewButton("📍 ĐIỂM " .. posCount, false, function()
-            player.Character:SetPrimaryPartCFrame(savedPos)
-        end)
-        tpBtn.BackgroundColor3 = Color3.fromRGB(0, 50, 0)
-    end
-end)
-
--- [14. INVISIBLE]
-NewButton("14. 👤 TÀNG HÌNH (LOCAL)", false, function(b)
-    pcall(function()
-        player.Character.LowerTorso.Root:Destroy()
-        b.Text = "14. ĐÃ TÀNG HÌNH"
-    end)
-end)
-
--- [[ HỆ THỐNG XỬ LÝ CHUYÊN SÂU - KHÔNG LOOP RÁC ]]
-
--- 1. Xử lý Di chuyển & Trạng thái (60 FPS)
-RunService.Heartbeat:Connect(function()
-    pcall(function()
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        
-        if hum and hrp then
-            if Toggles.Speed then hum.WalkSpeed = Values.Speed end
-            if Toggles.Jump then hum.JumpPower = Values.Jump end
-            if Toggles.Ghost then hrp.Velocity = Vector3.new(0, 0, 0) end
-            if Toggles.Fly then hrp.Velocity = Vector3.new(0, 5, 0) end
-            if Toggles.Noclip then
-                for _, part in pairs(char:GetChildren()) do
-                    if part:IsA("BasePart") then part.CanCollide = false end
-                end
-            end
-        end
-        
-        if Toggles.FullBright then
-            Lighting.Brightness = 2
-            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
-            Lighting.GlobalShadows = false
-        end
-    end)
-end)
-
--- 2. Xử lý Tương tác & Stamina (Hook Method)
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
+local mt = getrawmetatable(game); setreadonly(mt, false)
+local old = mt.__namecall
 mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    if not checkcaller() and Toggles.Stamina then
-        local name = tostring(self):lower()
-        if name:find("stamina") or name:find("energy") then return nil end
+    local m = getnamecallmethod()
+    if Config.States.Stamina and not checkcaller() and (m == "FireServer" or m == "InvokeServer") then
+        local n = tostring(self):lower()
+        if n:find("stamina") or n:find("run") or n:find("energy") or n:find("exhaust") then return nil end
     end
-    return oldNamecall(self, ...)
-end)
-setreadonly(mt, true)
+    return old(self, ...)
+end); setreadonly(mt, true)
 
--- 3. Xử lý ESP (Tối ưu hóa: Quét 1 lần mỗi 2 giây, dùng Nhãn dán)
+-- 6. NOCLIP
+Library:CreateButton("6. Xuyên Tường (Noclip)", function(state)
+    Config.States.Noclip = state
+    Library:Notify(state and "Bật Noclip" or "Tắt Noclip", state and "Success" or "Fail")
+end)
+RunService.Stepped:Connect(function()
+    if Config.States.Noclip and player.Character then
+        for _, v in pairs(player.Character:GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide = false end
+        end
+    end
+end)
+
+-- 7. FLY V2 (WASD)
+Library:CreateButton("7. Fly Mode V2 (PC only)", function(state)
+    Config.States.Fly = state
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if state and hrp then
+        local bv = Instance.new("BodyVelocity", hrp); bv.Name = "V28_Fly"; bv.MaxForce = Vector3.one * math.huge
+        local bg = Instance.new("BodyGyro", hrp); bg.Name = "V28_Gyro"; bg.MaxTorque = Vector3.one * math.huge; bg.P = 10000
+        char.Humanoid.PlatformStand = true
+        Library:Notify("Bay bằng WASD + Chuột", "Success")
+    elseif hrp then
+        for _,v in pairs(hrp:GetChildren()) do if v.Name:find("V28_") then v:Destroy() end end
+        char.Humanoid.PlatformStand = false
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if Config.States.Fly and player.Character then
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and hrp:FindFirstChild("V28_Fly") then
+            local cf = camera.CFrame
+            local vel = Vector3.zero
+            hrp.V28_Gyro.CFrame = cf
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then vel = vel + cf.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then vel = vel - cf.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then vel = vel - cf.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then vel = vel + cf.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0,1,0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vel = vel - Vector3.new(0,1,0) end
+            
+            hrp.V28_Fly.Velocity = vel * Config.FlySpeed
+        end
+    end
+end)
+
+-- 8 & 9. ESP SYSTEM (OPTIMIZED)
+Library:CreateButton("8. ESP Player (Box)", function(state)
+    Config.States.Esp = state
+    if not state then for _,v in pairs(Workspace:GetDescendants()) do if v.Name == "V28_ESP" then v:Destroy() end end end
+end)
+Library:CreateButton("9. ESP Item", function(state)
+    Config.States.EspItem = state
+    if not state then for _,v in pairs(Workspace:GetDescendants()) do if v.Name == "V28_Item" then v:Destroy() end end end
+end)
+
 task.spawn(function()
-    while task.wait(2) do
-        if Toggles.ESP_Entity or Toggles.ESP_Item then
-            for _, obj in pairs(Workspace:GetDescendants()) do
-                -- ESP Entity
-                if Toggles.ESP_Entity and obj:IsA("Humanoid") and obj.Parent.Name ~= player.Name then
-                    local head = obj.Parent:FindFirstChild("Head")
-                    if head and not head:FindFirstChild("TrNgHai_ESP") then
-                        local gui = Instance.new("BillboardGui", head)
-                        gui.Name = "TrNgHai_ESP"; gui.AlwaysOnTop = true; gui.Size = UDim2.new(0, 100, 0, 40)
-                        local txt = Instance.new("TextLabel", gui); txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1
-                        txt.Text = "⚠️ " .. obj.Parent.Name; txt.TextColor3 = Color3.new(1, 0, 0); txt.TextScaled = true
-                    end
+    while task.wait(1) do
+        if Config.States.Esp then
+            for _,p in pairs(Players:GetPlayers()) do
+                if p ~= player and p.Character and p.Character:FindFirstChild("Head") and not p.Character.Head:FindFirstChild("V28_ESP") then
+                    local bg = Instance.new("BillboardGui", p.Character.Head); bg.Name = "V28_ESP"; bg.Size = UDim2.new(0,100,0,50); bg.AlwaysOnTop = true
+                    local t = Instance.new("TextLabel", bg); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1
+                    t.Text = "⚠️ " .. p.Name; t.TextColor3 = Color3.fromRGB(255, 50, 50); t.TextStrokeTransparency = 0; t.Font = Enum.Font.GothamBlack
                 end
-                -- ESP Item (Lọc kỹ)
-                if Toggles.ESP_Item and (obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector")) then
-                    local target = obj.Parent
-                    local name = target.Name:lower()
-                    local shouldShow = false
-                    for _, kw in pairs(ItemKeywords) do if name:find(kw) then shouldShow = true break end end
-                    
-                    if shouldShow and target:IsA("BasePart") and not target:FindFirstChild("TrNgHai_Item") then
-                        local gui = Instance.new("BillboardGui", target)
-                        gui.Name = "TrNgHai_Item"; gui.AlwaysOnTop = true; gui.Size = UDim2.new(0, 80, 0, 35)
-                        local txt = Instance.new("TextLabel", gui); txt.Size = UDim2.new(1, 0, 1, 0); txt.BackgroundTransparency = 1
-                        txt.Text = "💎 " .. target.Name:upper(); txt.TextColor3 = Color3.new(0, 1, 1); txt.TextScaled = true
-                    end
+            end
+        end
+        if Config.States.EspItem then
+            for _,v in pairs(Workspace:GetDescendants()) do
+                if (v:IsA("ProximityPrompt") or v:IsA("ClickDetector")) and v.Parent and not v.Parent:FindFirstChild("V28_Item") then
+                     local bg = Instance.new("BillboardGui", v.Parent); bg.Name = "V28_Item"; bg.Size = UDim2.new(0,80,0,40); bg.AlwaysOnTop = true
+                     local t = Instance.new("TextLabel", bg); t.Size = UDim2.new(1,0,1,0); t.BackgroundTransparency = 1
+                     t.Text = "💎 " .. v.Parent.Name; t.TextColor3 = Color3.fromRGB(0, 255, 255); t.TextStrokeTransparency = 0; t.Font = Enum.Font.GothamBold
                 end
-                
-                -- Instant Interact Logic
-                if Toggles.Instant and obj:IsA("ProximityPrompt") then obj.HoldDuration = 0 end
             end
         end
     end
 end)
 
--- [NÚT MỞ RỒNG DI ĐỘNG]
-local ToggleBtn = Instance.new("TextButton", ScreenGui)
-ToggleBtn.Size = UDim2.new(0, 55, 0, 55)
-ToggleBtn.Position = UDim2.new(0.02, 0, 0.4, 0)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 0, 0)
-ToggleBtn.Text = "🐉"
-ToggleBtn.TextSize = 30
-ToggleBtn.TextColor3 = Color3.new(1, 0, 0)
-ToggleBtn.Active = true
-ToggleBtn.Draggable = true
-Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(1, 0)
+-- 10. BRIGHT
+Library:CreateButton("10. Full Bright", function(state)
+    Config.States.Bright = state
+    Lighting.Brightness = state and 2 or 1
+    Lighting.ClockTime = state and 14 or Lighting.ClockTime
+end)
 
-ToggleBtn.MouseButton1Click:Connect(function()
+-- 11. FIX LAG
+Library:CreateAction("11. Fix Lag (Tối ưu FPS)", Color3.fromRGB(0, 100, 200), function()
+    for _,v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic; v.CastShadow = false end
+        if v:IsA("Texture") or v:IsA("Decal") then v:Destroy() end
+    end
+    Library:Notify("Đã tối ưu đồ hoạ!", "Success")
+end)
+
+-- 12. ANTI AFK
+Library:CreateButton("12. Anti-AFK", function(state)
+    Config.States.AntiAfk = state
+end)
+player.Idled:Connect(function()
+    if Config.States.AntiAfk then
+        game:GetService("VirtualUser"):CaptureController()
+        game:GetService("VirtualUser"):ClickButton2(Vector2.zero)
+    end
+end)
+
+-- 13. TELEPORT
+Library:CreateAction("13. [LƯU] Vị trí hiện tại", Color3.fromRGB(200, 150, 0), function()
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        SavedCFrame = player.Character.HumanoidRootPart.CFrame
+        Library:Notify("Đã lưu vị trí!", "Success")
+    end
+end)
+Library:CreateAction("📍 [DỊCH] Đến vị trí lưu", Color3.fromRGB(50, 50, 50), function()
+    if SavedCFrame and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        player.Character.HumanoidRootPart.CFrame = SavedCFrame
+        Library:Notify("Đã dịch chuyển!", "Success")
+    else
+        Library:Notify("Chưa lưu vị trí!", "Fail")
+    end
+end)
+
+-- 14. INVISIBLE
+Library:CreateAction("14. Tàng hình (Xóa chân)", Color3.fromRGB(100, 0, 0), function()
+    if player.Character and player.Character:FindFirstChild("LowerTorso") then
+        player.Character.LowerTorso.Root:Destroy()
+        Library:Notify("Đã kích hoạt tàng hình!", "Success")
+    else
+        Library:Notify("Không tìm thấy nhân vật!", "Fail")
+    end
+end)
+
+-- >> TOGGLE OPEN BUTTON (DRAGON ICON)
+local OpenBtn = Instance.new("TextButton", UI)
+OpenBtn.Size = UDim2.new(0, 60, 0, 60); OpenBtn.Position = UDim2.new(0.1, 0, 0.1, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+OpenBtn.Text = "🐉"; OpenBtn.TextSize = 35; OpenBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(1, 0)
+local StrokeBtn = Instance.new("UIStroke", OpenBtn); StrokeBtn.Color = Color3.fromRGB(255, 0, 0); StrokeBtn.Thickness = 2
+OpenBtn.Draggable = true
+
+OpenBtn.MouseButton1Click:Connect(function()
     Main.Visible = not Main.Visible
 end)
 
--- [ANTI-AFK]
-player.Idled:Connect(function()
-    if Toggles.AntiAfk then
-        VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
-        task.wait(1)
-        VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
-    end
-end)
+Library:Notify("TrNgHai V28 Loaded!", "Success")
