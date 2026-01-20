@@ -1,102 +1,89 @@
---[[
-    TSB HITBOX CONTROLLER
-    ---------------------
-    Thiết kế dành riêng cho The Strongest Battlegrounds.
-    Tính năng: Tăng vùng nhận diện va chạm của đối thủ.
+--[[ 
+    TSB VORTEX CUSTOM
+    -----------------
+    - FIX: Hitbox thực tế (Sử dụng RenderStepped để ép Size liên tục).
+    - FIX: UI có thể kéo (Hold tiêu đề để di chuyển).
+    - ADD: Nút thu nhỏ (Minimize).
 ]]
-
-local g = getgenv and getgenv() or _G
-if g.TSB_Hitbox_Loaded then return end
-g.TSB_Hitbox_Loaded = true
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-
+local UserInputService = game:GetService("UserInputService")
 local lp = Players.LocalPlayer
 
 -- [CONFIG]
-local Config = {
-    Enabled = false,
-    Size = 12, -- Mức an toàn cho TSB là 10-15
-    Transparency = 0.6,
-    Color = Color3.fromRGB(255, 0, 0)
-}
+local Config = { Enabled = false, Size = 12, Visible = true }
 
--- [UI TỐI GIẢN]
-local UI = Instance.new("ScreenGui", CoreGui)
-UI.Name = "TSB_Hitbox_UI"
-
+-- [UI CONSTRUCTION]
+local UI = Instance.new("ScreenGui", game:GetService("CoreGui"))
 local Main = Instance.new("Frame", UI)
-Main.Size = UDim2.new(0, 200, 0, 150)
-Main.Position = UDim2.new(0.5, -100, 0.8, 0)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-Main.BorderSizePixel = 0
-Instance.new("UICorner", Main)
+Main.Size = UDim2.new(0, 200, 0, 160)
+Main.Position = UDim2.new(0.5, -100, 0.4, 0)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+Main.Active = true
+Main.Draggable = true -- Bật tính năng di chuyển
 
-local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, 0, 0, 40); Title.Text = "TSB HITBOX"; Title.TextColor3 = Color3.new(1, 1, 1)
-Title.BackgroundTransparency = 1; Title.Font = Enum.Font.GothamBold; Title.TextSize = 14
+local Corner = Instance.new("UICorner", Main)
+
+local Title = Instance.new("TextButton", Main) -- Dùng nút để làm thanh tiêu đề có thể click thu nhỏ
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.Text = " 🌀 TSB VORTEX (Kéo để di chuyển)"; Title.TextColor3 = Color3.new(1,1,1)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+Title.Font = Enum.Font.GothamBold; Title.TextSize = 12
+Instance.new("UICorner", Title)
 
 local ToggleBtn = Instance.new("TextButton", Main)
-ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40); ToggleBtn.Position = UDim2.new(0.05, 0, 0.35, 0)
-ToggleBtn.Text = "TRẠNG THÁI: OFF"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-ToggleBtn.TextColor3 = Color3.new(1, 1, 1); ToggleBtn.Font = Enum.Font.GothamSemibold; ToggleBtn.TextSize = 12
+ToggleBtn.Size = UDim2.new(0.9, 0, 0, 40); ToggleBtn.Position = UDim2.new(0.05, 0, 0.3, 0)
+ToggleBtn.Text = "HITBOX: OFF"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+ToggleBtn.TextColor3 = Color3.new(1,1,1); ToggleBtn.Font = Enum.Font.GothamSemibold
 Instance.new("UICorner", ToggleBtn)
 
--- Hiển thị thông số hiện tại
-local Info = Instance.new("TextLabel", Main)
-Info.Size = UDim2.new(1, 0, 0, 30); Info.Position = UDim2.new(0, 0, 0.7, 0)
-Info.Text = "Kích thước: " .. Config.Size; Info.TextColor3 = Color3.fromRGB(150, 150, 150)
-Info.BackgroundTransparency = 1; Info.Font = Enum.Font.Gotham; Info.TextSize = 11
+local RangeLabel = Instance.new("TextLabel", Main)
+RangeLabel.Size = UDim2.new(1, 0, 0, 30); RangeLabel.Position = UDim2.new(0, 0, 0.65, 0)
+RangeLabel.Text = "Size: " .. Config.Size .. " (Mũi tên ↑ ↓)"; RangeLabel.TextColor3 = Color3.new(0.7, 0.7, 0.7)
+RangeLabel.BackgroundTransparency = 1; RangeLabel.TextSize = 11
 
--- [LOGIC XỬ LÝ]
+-- [LOGIC THU NHỎ]
+Title.MouseButton1Click:Connect(function()
+    Config.Visible = not Config.Visible
+    ToggleBtn.Visible = Config.Visible
+    RangeLabel.Visible = Config.Visible
+    Main:TweenSize(Config.Visible and UDim2.new(0, 200, 0, 160) or UDim2.new(0, 200, 0, 35), "Out", "Quad", 0.3)
+end)
+
+-- [LOGIC HITBOX THỰC TẾ]
+-- Sử dụng RenderStepped để ép Size mỗi khi khung hình render, ngăn server reset
 RunService.RenderStepped:Connect(function()
     if Config.Enabled then
         for _, v in pairs(Players:GetPlayers()) do
             if v ~= lp and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
                 local hrp = v.Character.HumanoidRootPart
-                
-                -- Thay đổi thuộc tính Part
+                -- Ép Size liên tục
                 hrp.Size = Vector3.new(Config.Size, Config.Size, Config.Size)
-                hrp.Transparency = Config.Transparency
-                hrp.Color = Config.Color
-                hrp.Material = Enum.Material.Neon
-                hrp.CanCollide = false -- Quan trọng: Tránh việc bạn bị đẩy ra khi đấm
+                hrp.Transparency = 0.7
+                hrp.Color = Color3.new(1, 0, 0)
+                hrp.CanCollide = false
             end
         end
     end
 end)
 
--- Nút bấm
+-- [CONTROLS]
 ToggleBtn.MouseButton1Click:Connect(function()
     Config.Enabled = not Config.Enabled
-    if Config.Enabled then
-        ToggleBtn.Text = "TRẠNG THÁI: ON"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    else
-        ToggleBtn.Text = "TRẠNG THÁI: OFF"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        -- Trả lại kích thước cũ (Reset trực quan)
-        for _, v in pairs(Players:GetPlayers()) do
-            if v ~= lp and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
-                v.Character.HumanoidRootPart.Size = Vector3.new(2, 2, 1)
-                v.Character.HumanoidRootPart.Transparency = 1
-            end
-        end
-    end
+    ToggleBtn.Text = Config.Enabled and "HITBOX: ON" or "HITBOX: OFF"
+    ToggleBtn.BackgroundColor3 = Config.Enabled and Color3.fromRGB(200, 50, 50) or Color3.fromRGB(40, 40, 45)
 end)
 
--- Cho phép điều chỉnh kích thước nhanh bằng phím mũi tên Lên/Xuống
-game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.Up then
         Config.Size = math.clamp(Config.Size + 1, 2, 30)
-        Info.Text = "Kích thước: " .. Config.Size
+        RangeLabel.Text = "Size: " .. Config.Size .. " (Mũi tên ↑ ↓)"
     elseif input.KeyCode == Enum.KeyCode.Down then
         Config.Size = math.clamp(Config.Size - 1, 2, 30)
-        Info.Text = "Kích thước: " .. Config.Size
+        RangeLabel.Text = "Size: " .. Config.Size .. " (Mũi tên ↑ ↓)"
+    elseif input.KeyCode == Enum.KeyCode.RightShift then -- Phím ẩn/hiện toàn bộ menu
+        UI.Enabled = not UI.Enabled
     end
 end)
-
-print("TSB Hitbox Loaded! Dùng mũi tên Lên/Xuống để chỉnh độ to.")
